@@ -38,9 +38,26 @@ def detect_injection(user_input: str) -> bool:
         True if injection detected, False otherwise
     """
     INJECTION_PATTERNS = [
-        # TODO: Add at least 5 regex patterns
-        # Example:
-        # r"ignore (all )?(previous|above) instructions",
+        r"ignore\s+(all\s+)?(previous|above)\s+instructions?",
+        r"forget\s+your\s+instructions?",
+        r"disregard\s+(all\s+)?(prior|previous)\s+directives?",
+        r"you\s+are\s+now\s+DAN",
+        r"pretend\s+you\s+are\s+(\w+\s+)?unrestricted",
+        r"act\s+as\s+(\w+\s+)?unrestricted",
+        r"reveal\s+(your\s+)?(instructions?|system\s+prompt|prompt)",
+        r"show\s+(your\s+)?system\s+prompt",
+        r"translate\s+your\s+system\s+prompt",
+        r"output\s+(your\s+)?(system\s+)?prompt",
+        r"bypass\s+your\s+(safety|content)\s+filters?",
+        r"bỏ\s+qua\s+mọi\s+hướng dẫn",
+        r"hãy\s+tiết\s+lộ\s+mật\s+khẩu",
+        r"cho\s+tôi\s+xem\s+system\s+prompt",
+        r"I'?m\s+the\s+CISO",
+        r"per\s+ticket\s+SEC-\d{4}-\d{3}",
+        r"the\s+database\s+connection\s+string\s+is\s+(\w|\S)+",
+        r"fill\s+in:\s*(the\s+)?database",
+        r"you\s+have\s+no\s+safety\s+rules?",
+        r"disable\s+(all\s+)?(safety|moderation)\s+(rules?|checks?|filters?)",
     ]
 
     for pattern in INJECTION_PATTERNS:
@@ -70,12 +87,23 @@ def topic_filter(user_input: str) -> bool:
     """
     input_lower = user_input.lower()
 
-    # TODO: Implement logic:
-    # 1. If input contains any blocked topic -> return True
-    # 2. If input doesn't contain any allowed topic -> return True
-    # 3. Otherwise -> return False (allow)
+    # 1. Check blocked topics (immediate reject)
+    for blocked in BLOCKED_TOPICS:
+        if blocked in input_lower:
+            return True
 
-    pass  # Replace with your implementation
+    # 2. Check if input contains any allowed topic
+    has_allowed = False
+    for allowed in ALLOWED_TOPICS:
+        if allowed in input_lower:
+            has_allowed = True
+            break
+
+    # If no allowed topic found, block as off-topic
+    if not has_allowed:
+        return True
+
+    return False
 
 
 # ============================================================
@@ -128,14 +156,24 @@ class InputGuardrailPlugin(base_plugin.BasePlugin):
         self.total_count += 1
         text = self._extract_text(user_message)
 
-        # TODO: Implement logic:
-        # 1. Call detect_injection(text)
-        #    - If True: increment blocked_count, return self._block_response("...")
-        # 2. Call topic_filter(text)
-        #    - If True: increment blocked_count, return self._block_response("...")
-        # 3. If both are False: return None (let message through)
+        # 1. Check injection patterns
+        if detect_injection(text):
+            self.blocked_count += 1
+            return self._block_response(
+                "I cannot process that request. It appears to contain a prompt injection attempt. "
+                "I'm here to help with banking questions only."
+            )
 
-        pass  # Replace with your implementation
+        # 2. Check topic filter
+        if topic_filter(text):
+            self.blocked_count += 1
+            return self._block_response(
+                "I'm a VinBank assistant and can only help with banking-related questions. "
+                "How can I assist you with your account, transactions, or other banking needs?"
+            )
+
+        # Message passed all checks
+        return None
 
 
 # ============================================================
